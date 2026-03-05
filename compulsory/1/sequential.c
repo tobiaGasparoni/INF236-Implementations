@@ -136,69 +136,40 @@ int main(int argc, char **argv) {
         radix_sort(n, b, durations);
     }
     else if (argc == 1) {
-        double best_ratio = DBL_MAX;
-        u32 best_n, best_b = 0;
+        printf("\n=============\n");
+        printf("New loop: n from %d to %d and b from %d to %d", 10, 100000000, 1, 16);
+        printf("\n=============\n\n");
 
         for (u32 n = 10; n <= 100000000; n *= 10) {
             for (u32 b = 1; b <= 16; b *= 2) {
                 radix_sort(n, b, durations);
                 
-                double numbers_per_second_ratio = n / durations[0];
-                if (numbers_per_second_ratio < best_ratio) {
-                    best_ratio = numbers_per_second_ratio;
-                    best_n = n;
-                    best_b = b;
-                }
-                
                 printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
             }
         }
 
-        u32 lower_bound, upper_bound = 0;
-        if (closest_to_10_seconds < 0) {
-            lower_bound = best_n / 10;
-            upper_bound = best_n;
-        } else {
-            lower_bound = best_n;
-            upper_bound = best_n * 10;
-        }
-
         printf("\n=============\n");
-        printf("Chosen configuration: n = %d, b = %d\n", best_n, best_b);
-        printf("New lower bound: %d; New upper bound: %d\n", lower_bound, upper_bound);
-        printf("=============\n\n");
+        printf("Chosen configuration: n = %d, b = %d", 100000000, 8);
+        printf("\nNew loop: n from %d to %d and b = %d", 100000000, 1000000000, 8);
+        printf("\n=============\n\n");
 
-        closest_to_10_seconds = 10000;
-
-        for (u32 n = lower_bound; n <= upper_bound; n += lower_bound) {
+        u32 lower_bound = 100000000;
+        u32 best_b = 8;
+        for (u32 n = lower_bound; n <= lower_bound * 10; n += lower_bound) {
             radix_sort(n, best_b, durations);
-            
-            double difference_to_10 = 10 - durations[0];
-            if (fabs(difference_to_10) < fabs(closest_to_10_seconds)) {
-                closest_to_10_seconds = difference_to_10;
-                best_n = n;
-            }
 
             printf("%d, %d, %f, %f, %f, %f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
         }
 
         printf("\n=============\n");
-        printf("Chosen configuration: n = %d, b = %d\n", best_n, best_b);
-        printf("New lower bound: %d; New upper bound: %d\n", lower_bound, upper_bound);
-        printf("=============\n\n");
+        printf("Chosen configuration: n = %d, b = %d", 400000000, 8);
+        printf("\nNew loop: n = %d and b from %d to %d", 400000000, 1, 16);
+        printf("\n=============\n\n");
 
-        /*if (closest_to_10_seconds < 0) {
-            lower_bound = closest_n / 10;
-            upper_bound = closest_n;
-        } else {
-            lower_bound = closest_n;
-            upper_bound = closest_n * 10;
+        for (u32 b = 1; b <= 16; b *= 2) {
+            radix_sort(400000000, b, durations);
+            printf("%d, %d, %f, %f, %f, %f\n", 400000000, b, durations[0], durations[1], durations[2], durations[3]);
         }
-
-        for (u32 n = 300000000; n <= 400000000; n += 10000000) {
-            radix_sort(n, closest_b, durations);
-            printf("%d, %d, %f, %f, %f, %f\n", n, closest_b, durations[0], durations[1], durations[2], durations[3]);
-        }*/
     }
 
     return 0;
