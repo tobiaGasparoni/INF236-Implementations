@@ -105,7 +105,7 @@ void radix_sort(u32 n, u32 b, double* durations) {
         }
         double bucketing_end = omp_get_wtime();
         double bucketing_duration = bucketing_end - bucketing_start;
-        tot_bucketing_duration = bucketing_duration;
+        tot_bucketing_duration += bucketing_duration;
 
         // exchange pointers of the 2 input_arr arrays
         u64* aux = input_arr;
