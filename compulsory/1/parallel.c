@@ -52,7 +52,7 @@ bool is_sorted(u64 *arr, u32 size) {
 /**
  * 
  */
-void radix_sort(u32 n, u32 b, double* durations) {
+void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
     // initialization
     durations[0] = DBL_MAX;
     u64 *input_arr = malloc(n * sizeof(u64));
@@ -78,13 +78,22 @@ void radix_sort(u32 n, u32 b, double* durations) {
             __asm__ __volatile__("" ::: "memory");
             
             int num_buckets = ((u64) 1 << b);
-            u64 nums_per_bucket[num_buckets];
-            for (long i = 0; i < num_buckets; ++i) {
-                nums_per_bucket[i] = 0;
-            }
-            for (u32 i = 0; i < n; i++) {
-                int digit = get_digit(input_arr[i], b, sort_iteration);
-                nums_per_bucket[digit] += 1;
+            u64 nums_per_bucket[num_buckets * num_threads];
+
+            #pragma omp parallel
+            {
+                int tid = omp_get_thread_num();
+                int thread_separation = tid * num_buckets;
+
+                #pragma omp for schedule(static)
+                for (long i = 0; i < num_buckets * num_threads; ++i) {
+                    nums_per_bucket[i] = 0;
+                }
+                #pragma omp for schedule(static)
+                for (u32 i = 0; i < n; i++) {
+                    int digit = get_digit(input_arr[i], b, sort_iteration);
+                    nums_per_bucket[thread_separation + digit] += 1;
+                }
             }
 
             double counting_end = omp_get_wtime();
@@ -149,13 +158,14 @@ void radix_sort(u32 n, u32 b, double* durations) {
 
 int main(int argc, char **argv) {
     double durations[4] = {0};
-    if (argc == 3) {
+    if (argc == 4) {
         // n b
         u32 n = (argc > 1) ? atol(argv[1]) : 10;
         u32 b = (argc > 2) ? atol(argv[2]) : 16;
+        u32 p = (argc > 3) ? atol(argv[3]) : 1;
+        omp_set_num_threads(p);
 
-        radix_sort(n, b, durations);
-
+        radix_sort(n, b, p, durations);
         printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
     }
     else if (argc == 1) {
@@ -165,8 +175,7 @@ int main(int argc, char **argv) {
 
         for (u32 n = 10; n <= 100000000; n *= 10) {
             for (u32 b = 1; b <= 16; b *= 2) {
-                radix_sort(n, b, durations);
-                
+                radix_sort(n, b, 1, durations);
                 printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
             }
         }
@@ -180,8 +189,7 @@ int main(int argc, char **argv) {
         u32 best_b = 16;
         durations[0] = 0;
         for (u32 n = lower_bound; durations[0] < 10; n += lower_bound) {
-            radix_sort(n, best_b, durations);
-
+            radix_sort(n, best_b, 1, durations);
             printf("%d, %d, %f, %f, %f, %f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
         }
 
@@ -192,7 +200,7 @@ int main(int argc, char **argv) {
         printf("\n=============\n\n");
 
         for (u32 b = 1; b <= 16; b *= 2) {
-            radix_sort(fixed_n, b, durations);
+            radix_sort(fixed_n, b, 1, durations);
             printf("%d, %d, %f, %f, %f, %f\n", fixed_n, b, durations[0], durations[1], durations[2], durations[3]);
         }
     }
