@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
         printf("\n=============\n\n");
 
         print_stats_heading();
-        u32 best_b = 8;
+        u32 best_b = 16;
         durations[0] = 0;
         for (u32 n = lower_bound; durations[0] < 10; n += lower_bound) {
             radix_sort(n, best_b, durations, false);

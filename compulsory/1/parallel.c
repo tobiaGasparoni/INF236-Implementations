@@ -207,38 +207,34 @@ int main(int argc, char **argv) {
     }
     else if (argc == 1) {
         u32 fixed_n = 400000000;
-        int max_b = 8;
-        int max_p = 16;
+        int fixed_b = 16;
+        int max_p = 32;
 
         printf("\n=============\n");
-        printf("Fixed value for n: %d", fixed_n);
+        printf("Fixed value for n: %d and b: %d", fixed_n, fixed_b);
         printf("\nNew loop: p from %d to %d", 1, max_p);
         printf("\n=============\n\n");
 
         print_stats_heading();
         for (int p = 1; p <= max_p; p++) {
-            for (u32 b = max_b; b <= max_b; b *= 2) {
-                omp_set_num_threads(p);
-                radix_sort(fixed_n, b, p, durations, false);
-                printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", fixed_n, b, p, durations[0], durations[1], durations[2], durations[3]);
-            }
+            omp_set_num_threads(p);
+            radix_sort(fixed_n, fixed_b, p, durations, false);
+            printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", fixed_n, fixed_b, p, durations[0], durations[1], durations[2], durations[3]);
         }
 
-        int fixed_b = 8;
-        int n = 100000;
-        int n_rate = 50000;
+        int n = 1000000;
 
         printf("\n=============\n");
         printf("Fixed value for b: %d", fixed_b);
-        printf("\nNew loop: n from %d to %d and p from %d to %d", n, n + n_rate * (max_p - 1), 1, max_p);
+        printf("\nNew loop: n from %d to %d and p from %d to %d", n, n * 32, 1, max_p);
         printf("\n=============\n\n");
 
         print_stats_heading();
-        for (int p = 1; p <= max_p; p++) {
+        for (int p = 1; p <= max_p; p *= 2) {
             omp_set_num_threads(p);
             radix_sort(n, fixed_b, p, durations, false);
             printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", n, fixed_b, p, durations[0], durations[1], durations[2], durations[3]);
-            n += n_rate;
+            n *= 2;
         }
     }
 
