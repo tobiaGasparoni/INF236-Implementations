@@ -41,18 +41,13 @@ bool is_sorted(u64 *arr, u32 size) {
             sorted = false;
         }
     }
-    if (sorted) {
-        printf("IT IS SORTED!\n");
-    } else {
-        printf("IT IS NOT SORTED!\n");
-    }
     return sorted;
 }
 
 /**
  * 
  */
-void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
+void radix_sort(u32 n, u32 b, u32 num_threads, double* durations, bool print_sorted) {
     // initialization
     durations[0] = DBL_MAX;
     u64 *input_arr = malloc(n * sizeof(u64));
@@ -78,21 +73,31 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
             __asm__ __volatile__("" ::: "memory");
             
             int num_buckets = ((u64) 1 << b);
-            u64 nums_per_bucket[num_buckets * num_threads];
+            u64 *per_thread_counter = malloc(num_buckets * num_threads * sizeof(u64));
+            u32 *prefix_sum_array = malloc(num_buckets * num_threads * sizeof(u32));
+
+            if (!per_thread_counter || !prefix_sum_array) {
+                fprintf(stderr, "Memory allocation failed\n");
+                exit(1);
+            }
+
+            u64 nums_per_bucket[num_buckets];
 
             #pragma omp parallel
             {
                 int tid = omp_get_thread_num();
-                int thread_separation = tid * num_buckets;
+                // Pre-calculate the base pointer for this thread to simplify the inner loop
+                u64* my_counts = &per_thread_counter[tid * num_buckets];
+
+                // Initialize only this thread's portion
+                for (int j = 0; j < num_buckets; j++) {
+                    my_counts[j] = 0;
+                }
 
                 #pragma omp for schedule(static)
-                for (long i = 0; i < num_buckets * num_threads; ++i) {
-                    nums_per_bucket[i] = 0;
-                }
-                #pragma omp for schedule(static)
                 for (u32 i = 0; i < n; i++) {
-                    int digit = get_digit(input_arr[i], b, sort_iteration);
-                    nums_per_bucket[thread_separation + digit] += 1;
+                    u64 digit = get_digit(input_arr[i], b, sort_iteration);
+                    my_counts[digit]++; // No false sharing here!
                 }
             }
 
@@ -105,10 +110,15 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
             double prefix_gen_start = omp_get_wtime();
             __asm__ __volatile__("" ::: "memory");
 
-            u32 prefix_sum_array[num_buckets];
-            prefix_sum_array[0] = 0;
-            for (long i = 1; i < num_buckets; ++i) {
-                prefix_sum_array[i] = prefix_sum_array[i-1] + nums_per_bucket[i-1];
+            u32 running_sum = 0;
+            // We iterate through buckets first, then threads, to build the global order
+            for (u32 bucket = 0; bucket < num_buckets; bucket++) {
+                for (int t = 0; t < num_threads; t++) {
+                    u32 count = per_thread_counter[t * num_buckets + bucket];
+                    // Store the starting position for this specific thread's items for this bucket
+                    prefix_sum_array[t * num_buckets + bucket] = running_sum;
+                    running_sum += count;
+                }
             }
 
             __asm__ __volatile__("" ::: "memory");
@@ -119,12 +129,25 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
             // move numbers to bucketed array
             double bucketing_start = omp_get_wtime();
             __asm__ __volatile__("" ::: "memory");
-            for (u32 i = 0; i < n; i++) {
-                int digit = get_digit(input_arr[i], b, sort_iteration);
-                int bucket_i = prefix_sum_array[digit];
-                output_arr[bucket_i] = input_arr[i];
-                prefix_sum_array[digit]++;
+
+            #pragma omp parallel
+            {
+                int tid = omp_get_thread_num();
+                u32* my_offsets = &prefix_sum_array[tid * num_buckets];
+
+                #pragma omp for schedule(static)
+                for (u32 i = 0; i < n; i++) {
+                    u64 digit = get_digit(input_arr[i], b, sort_iteration);
+                    
+                    // Get the current available index for this thread/digit combo
+                    u32 target_idx = my_offsets[digit];
+                    output_arr[target_idx] = input_arr[i];
+                    
+                    // Increment the offset so the next item for this digit goes to the next slot
+                    my_offsets[digit]++; 
+                }
             }
+
             __asm__ __volatile__("" ::: "memory");
             double bucketing_end = omp_get_wtime();
             double bucketing_duration = bucketing_end - bucketing_start;
@@ -135,12 +158,23 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
             u64* aux = input_arr;
             input_arr = output_arr;
             output_arr = aux;
+
+            free(per_thread_counter);
+            free(prefix_sum_array);
         }
 
         __asm__ __volatile__("" ::: "memory");
         double sorting_end = omp_get_wtime();
         double sorting_duration = sorting_end - sorting_start;
         __asm__ __volatile__("" ::: "memory");
+
+        // check output
+        bool sorted = is_sorted(input_arr, n);
+        if (print_sorted && sorted) {
+            printf("IT IS SORTED!\n");
+        } else if (!sorted) {
+            printf("IT IS NOT SORTED!\n");
+        }
 
         if (sorting_duration < durations[0]) {
             durations[0] = sorting_duration;
@@ -150,58 +184,61 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations) {
         }
     }
 
-    // is_sorted(input_arr, n);
-
     free(input_arr);
     free(output_arr);
+}
+
+void print_stats_heading() {
+    printf("n\tb\tp\ttotal_time\tcounting_time\tprefix_time\tbucket_time\n");
 }
 
 int main(int argc, char **argv) {
     double durations[4] = {0};
     if (argc == 4) {
-        // n b
+        // n b p
         u32 n = (argc > 1) ? atol(argv[1]) : 10;
         u32 b = (argc > 2) ? atol(argv[2]) : 16;
         u32 p = (argc > 3) ? atol(argv[3]) : 1;
         omp_set_num_threads(p);
 
-        radix_sort(n, b, p, durations);
-        printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
+        radix_sort(n, b, p, durations, true);
+        print_stats_heading();
+        printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", n, b, p, durations[0], durations[1], durations[2], durations[3]);
     }
     else if (argc == 1) {
+        u32 fixed_n = 3000000;
+        int max_b = 8;
+        int max_p = 16;
+
         printf("\n=============\n");
-        printf("New loop: n from %d to %d and b from %d to %d", 10, 100000000, 1, 16);
+        printf("Fixed value for n: %d", fixed_n);
+        printf("\nNew loop: b from %d to %d and p from %d to %d", 1, max_b, 1, max_p);
         printf("\n=============\n\n");
 
-        for (u32 n = 10; n <= 100000000; n *= 10) {
-            for (u32 b = 1; b <= 16; b *= 2) {
-                radix_sort(n, b, 1, durations);
-                printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
+        print_stats_heading();
+        for (int p = 1; p <= max_p; p++) {
+            for (u32 b = max_b; b <= max_b; b *= 2) {
+                omp_set_num_threads(p);
+                radix_sort(fixed_n, b, p, durations, false);
+                printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", fixed_n, b, p, durations[0], durations[1], durations[2], durations[3]);
             }
         }
 
-        u32 lower_bound = 100000000;
+        int fixed_b = 8;
+        int n = 100000;
+        int n_rate = 50000;
+
         printf("\n=============\n");
-        printf("Chosen configuration: n = %d, b = %d", lower_bound, 16);
-        printf("\nNew loop: n from %d to %d and b = %d", lower_bound, lower_bound * 10, 16);
+        printf("Fixed value for b: %d", fixed_b);
+        printf("\nNew loop: n from %d to %d and p from %d to %d", n, n + n_rate * (max_p - 1), 1, max_p);
         printf("\n=============\n\n");
 
-        u32 best_b = 16;
-        durations[0] = 0;
-        for (u32 n = lower_bound; durations[0] < 10; n += lower_bound) {
-            radix_sort(n, best_b, 1, durations);
-            printf("%d, %d, %f, %f, %f, %f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
-        }
-
-        u32 fixed_n = 300000000;
-        printf("\n=============\n");
-        printf("Chosen configuration: n = %d, b = %d", fixed_n, 16);
-        printf("\nNew loop: n = %d and b from %d to %d", fixed_n, 1, 16);
-        printf("\n=============\n\n");
-
-        for (u32 b = 1; b <= 16; b *= 2) {
-            radix_sort(fixed_n, b, 1, durations);
-            printf("%d, %d, %f, %f, %f, %f\n", fixed_n, b, durations[0], durations[1], durations[2], durations[3]);
+        print_stats_heading();
+        for (int p = 1; p <= max_p; p++) {
+            omp_set_num_threads(p);
+            radix_sort(n, fixed_b, p, durations, false);
+            printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", n, fixed_b, p, durations[0], durations[1], durations[2], durations[3]);
+            n += n_rate;
         }
     }
 

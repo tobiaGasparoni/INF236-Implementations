@@ -41,18 +41,13 @@ bool is_sorted(u64 *arr, u32 size) {
             sorted = false;
         }
     }
-    if (sorted) {
-        printf("IT IS SORTED!\n");
-    } else {
-        printf("IT IS NOT SORTED!\n");
-    }
     return sorted;
 }
 
 /**
  * 
  */
-void radix_sort(u32 n, u32 b, double* durations) {
+void radix_sort(u32 n, u32 b, double* durations, bool print_sorted) {
     // initialization
     durations[0] = DBL_MAX;
     u64 *input_arr = malloc(n * sizeof(u64));
@@ -133,6 +128,14 @@ void radix_sort(u32 n, u32 b, double* durations) {
         double sorting_duration = sorting_end - sorting_start;
         __asm__ __volatile__("" ::: "memory");
 
+        // check output
+        bool sorted = is_sorted(input_arr, n);
+        if (print_sorted && sorted) {
+            printf("IT IS SORTED!\n");
+        } else if (!sorted) {
+            printf("IT IS NOT SORTED!\n");
+        }
+
         if (sorting_duration < durations[0]) {
             durations[0] = sorting_duration;
             durations[1] = tot_counting_duration;
@@ -147,6 +150,10 @@ void radix_sort(u32 n, u32 b, double* durations) {
     free(output_arr);
 }
 
+void print_stats_heading() {
+    printf("n\tb\ttotal_time\tcounting_time\tprefix_time\tbucket_time\n");
+}
+
 int main(int argc, char **argv) {
     double durations[4] = {0};
     if (argc == 3) {
@@ -154,20 +161,21 @@ int main(int argc, char **argv) {
         u32 n = (argc > 1) ? atol(argv[1]) : 10;
         u32 b = (argc > 2) ? atol(argv[2]) : 16;
 
-        radix_sort(n, b, durations);
+        radix_sort(n, b, durations, true);
 
-        printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
+        printf("%d\t%d\t%f\t%f\t%f\t%f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
     }
     else if (argc == 1) {
         printf("\n=============\n");
         printf("New loop: n from %d to %d and b from %d to %d", 10, 100000000, 1, 16);
         printf("\n=============\n\n");
 
+        print_stats_heading();
         for (u32 n = 10; n <= 100000000; n *= 10) {
             for (u32 b = 1; b <= 16; b *= 2) {
-                radix_sort(n, b, durations);
+                radix_sort(n, b, durations, false);
                 
-                printf("%d, %d, %f, %f, %f, %f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
+                printf("%d\t%d\t%f\t%f\t%f\t%f\n", n, b, durations[0], durations[1], durations[2], durations[3]);
             }
         }
 
@@ -177,12 +185,13 @@ int main(int argc, char **argv) {
         printf("\nNew loop: n from %d to %d and b = %d", lower_bound, lower_bound * 10, 16);
         printf("\n=============\n\n");
 
+        print_stats_heading();
         u32 best_b = 16;
         durations[0] = 0;
         for (u32 n = lower_bound; durations[0] < 10; n += lower_bound) {
-            radix_sort(n, best_b, durations);
+            radix_sort(n, best_b, durations, false);
 
-            printf("%d, %d, %f, %f, %f, %f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
+            printf("%d\t%d\t%f\t%f\t%f\t%f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
         }
 
         u32 fixed_n = 300000000;
@@ -191,9 +200,10 @@ int main(int argc, char **argv) {
         printf("\nNew loop: n = %d and b from %d to %d", fixed_n, 1, 16);
         printf("\n=============\n\n");
 
+        print_stats_heading();
         for (u32 b = 1; b <= 16; b *= 2) {
-            radix_sort(fixed_n, b, durations);
-            printf("%d, %d, %f, %f, %f, %f\n", fixed_n, b, durations[0], durations[1], durations[2], durations[3]);
+            radix_sort(fixed_n, b, durations, false);
+            printf("%d\t%d\t%f\t%f\t%f\t%f\n", fixed_n, b, durations[0], durations[1], durations[2], durations[3]);
         }
     }
 
