@@ -144,8 +144,6 @@ void radix_sort(u32 n, u32 b, double* durations, bool print_sorted) {
         }
     }
 
-    // is_sorted(input_arr, n);
-
     free(input_arr);
     free(output_arr);
 }

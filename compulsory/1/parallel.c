@@ -86,18 +86,20 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations, bool print_sor
             #pragma omp parallel
             {
                 int tid = omp_get_thread_num();
-                // Pre-calculate the base pointer for this thread to simplify the inner loop
-                u64* my_counts = &per_thread_counter[tid * num_buckets];
+                // pre-calculate the base pointer for this thread to simplify the inner loop
+                // & is to get the address of that specific value
+                // stored in u64* (address of an unsigned 64 bit number)
+                u64* inner_count = &per_thread_counter[tid * num_buckets];
 
-                // Initialize only this thread's portion
+                // initialize only this thread's portion
                 for (int j = 0; j < num_buckets; j++) {
-                    my_counts[j] = 0;
+                    inner_count[j] = 0;
                 }
 
                 #pragma omp for schedule(static)
-                for (u32 i = 0; i < n; i++) {
-                    u64 digit = get_digit(input_arr[i], b, sort_iteration);
-                    my_counts[digit]++; // No false sharing here!
+                for (u32 j = 0; j < n; j++) {
+                    u64 digit = get_digit(input_arr[j], b, sort_iteration);
+                    inner_count[digit]++;
                 }
             }
 
@@ -111,11 +113,9 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations, bool print_sor
             __asm__ __volatile__("" ::: "memory");
 
             u32 running_sum = 0;
-            // We iterate through buckets first, then threads, to build the global order
             for (u32 bucket = 0; bucket < num_buckets; bucket++) {
                 for (int t = 0; t < num_threads; t++) {
                     u32 count = per_thread_counter[t * num_buckets + bucket];
-                    // Store the starting position for this specific thread's items for this bucket
                     prefix_sum_array[t * num_buckets + bucket] = running_sum;
                     running_sum += count;
                 }
@@ -136,14 +136,12 @@ void radix_sort(u32 n, u32 b, u32 num_threads, double* durations, bool print_sor
                 u32* my_offsets = &prefix_sum_array[tid * num_buckets];
 
                 #pragma omp for schedule(static)
-                for (u32 i = 0; i < n; i++) {
-                    u64 digit = get_digit(input_arr[i], b, sort_iteration);
+                for (u32 j = 0; j < n; j++) {
+                    u64 digit = get_digit(input_arr[j], b, sort_iteration);
                     
-                    // Get the current available index for this thread/digit combo
                     u32 target_idx = my_offsets[digit];
-                    output_arr[target_idx] = input_arr[i];
+                    output_arr[target_idx] = input_arr[j];
                     
-                    // Increment the offset so the next item for this digit goes to the next slot
                     my_offsets[digit]++; 
                 }
             }
