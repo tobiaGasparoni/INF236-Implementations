@@ -206,13 +206,13 @@ int main(int argc, char **argv) {
         printf("%d\t%d\t%d\t%f\t%f\t%f\t%f\n", n, b, p, durations[0], durations[1], durations[2], durations[3]);
     }
     else if (argc == 1) {
-        u32 fixed_n = 3000000;
+        u32 fixed_n = 400000000;
         int max_b = 8;
         int max_p = 16;
 
         printf("\n=============\n");
         printf("Fixed value for n: %d", fixed_n);
-        printf("\nNew loop: b from %d to %d and p from %d to %d", 1, max_b, 1, max_p);
+        printf("\nNew loop: p from %d to %d", 1, max_p);
         printf("\n=============\n\n");
 
         print_stats_heading();

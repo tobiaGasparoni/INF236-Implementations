@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
         printf("\n=============\n\n");
 
         print_stats_heading();
-        u32 best_b = 16;
+        u32 best_b = 8;
         durations[0] = 0;
         for (u32 n = lower_bound; durations[0] < 10; n += lower_bound) {
             radix_sort(n, best_b, durations, false);
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
             printf("%d\t%d\t%f\t%f\t%f\t%f\n", n, best_b, durations[0], durations[1], durations[2], durations[3]);
         }
 
-        u32 fixed_n = 300000000;
+        u32 fixed_n = 400000000;
         printf("\n=============\n");
         printf("Chosen configuration: n = %d, b = %d", fixed_n, 16);
         printf("\nNew loop: n = %d and b from %d to %d", fixed_n, 1, 16);
